@@ -1,36 +1,63 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# ⚡ TNEB Smart Analytics Dashboard
 
-## Getting Started
+A modern, high-performance Next.js web application designed to track, analyze, and visualize bi-monthly Tamil Nadu Electricity Board (TNEB) consumption data.
 
-First, run the development server:
+Instead of staring at boring, static billing tables, this application scrapes raw TNEB HTML payloads and transforms them into a beautiful, insightful, and interactive property management dashboard.
+
+## ✨ Features
+
+- **Smart Insights:** Automatically detects 100% subsidized (free) billing cycles and flags pending payments with due dates to protect property owners from penalties.
+- **Consumption Trends:** Interactive area charts visualizing bi-monthly KWH usage to easily spot abnormal power spikes (e.g., faulty appliances).
+- **Dynamic Slab Rates:** Context-aware slab rate displays that dynamically adjust and group based on whether total consumption is above or below the 500-unit threshold.
+- **Detailed Billing Ledger:** A clean, chronological breakdown of historical bills, meter readings, exact units consumed, and payment status.
+- **Property Profile:** Instantly view sanctioned load, phase details, region, and distribution metrics for any linked consumer number.
+
+## 🛠️ Tech Stack
+
+- **Framework:** [Next.js (App Router)](https://nextjs.org/)
+- **Language:** TypeScript
+- **Styling:** Tailwind CSS
+- **Icons:** Lucide React
+- **Charts:** Recharts
+- **Data Extraction:** Cheerio (Server-side HTML parsing)
+
+## 🚀 Getting Started
+
+### 1. Clone the repository
+
+```bash
+git clone https://github.com/anburocky3/tneb-smart-tracker.git
+cd tneb-smart-tracker
+```
+
+### 2. Install dependencies
+
+```bash
+npm install
+# or
+yarn install
+# or
+bun install
+```
+
+### 3. Env configuration
+
+Make duplicate of `env.example` to `.env` and update your data there.
+
+### 4. Run the development server
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
 Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## ⚠️ Important Note on Production Deployment
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+Currently, the `app/api/tneb/route.ts` API relies on a specific `PHPSESSID` and `tokenID` to bypass TNEB's initial security walls. Because TNEB actively rotates these sessions to prevent scraping, deploying this for autonomous, long-term production use will require implementing dynamic session handling (e.g., using Puppeteer/Playwright to negotiate initial tokens).
 
-## Learn More
+## 👨‍💻 Credits
 
-To learn more about Next.js, take a look at the following resources:
+**Designed & Developed by:** [Anbuselvan Annamalai](https://anbuselvan-annamalai.com) (Anbu)
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+_Built with passion to make utility management smarter and simpler for everyone._
