@@ -62,10 +62,18 @@ export default function SecurityWrapper({
             <input
               type="password"
               maxLength={4}
+              inputMode="numeric"
+              pattern="[0-9]*"
+              autoFocus
               value={pinInput}
               onChange={(e) => {
-                setPinInput(e.target.value);
+                const numericValue = e.target.value.replace(/\D/g, "");
+                setPinInput(numericValue);
                 setError(false);
+
+                if (numericValue.length === 5) {
+                  e.target.form?.requestSubmit();
+                }
               }}
               className={`w-full text-black text-center tracking-[1em] font-mono text-2xl py-3 border rounded-xl outline-none focus:ring-2 ${
                 error
@@ -88,6 +96,10 @@ export default function SecurityWrapper({
             </button>
           </form>
         </div>
+
+        <span className="mt-5 text-slate-400 text-xs font-medium">
+          {new Date().getFullYear()} Anbu Experiments. All rights reserved.
+        </span>
       </div>
     );
   }
@@ -99,7 +111,7 @@ export default function SecurityWrapper({
       {/* Global Watermark Footer */}
       <footer className="w-full bg-white border-t border-slate-200 py-4 px-6 mt-auto shrink-0 z-50">
         <div className="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between text-xs text-slate-400 font-medium tracking-wide">
-          <p>© {new Date().getFullYear()} Open Source Projects.</p>
+          <p>© {new Date().getFullYear()} Anbu Experiments.</p>
           <p className="mt-2 md:mt-0 flex items-center gap-1">
             Created by{" "}
             <span className="text-slate-600 font-bold">
