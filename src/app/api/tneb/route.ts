@@ -69,14 +69,22 @@ export interface ConsumerInfo {
 
 interface RequestBody {
   consumerNo: string | number;
+  tokenId: string; // Optional tokenID for future use
 }
 
 export async function POST(req: Request) {
   try {
     const body = (await req.json()) as RequestBody;
-    const { consumerNo } = body;
+    const { consumerNo, tokenId } = body;
 
-    const htmlData = await fetchTNEBData(consumerNo);
+    if (!tokenId) {
+      return NextResponse.json(
+        { success: false, error: "Token ID is required" },
+        { status: 400 },
+      );
+    }
+
+    const htmlData = await fetchTNEBData(consumerNo, tokenId);
     const $ = cheerio.load(htmlData);
 
     // --- 1. Extract Consumer Profile ---
@@ -209,7 +217,10 @@ export async function POST(req: Request) {
 }
 
 // --- Fetch Helper Function ---
-async function fetchTNEBData(consumerNo: string | number): Promise<string> {
+async function fetchTNEBData(
+  consumerNo: string | number,
+  tokenId: string,
+): Promise<string> {
   const value = String(consumerNo).trim();
 
   if (!value) {
@@ -247,7 +258,7 @@ async function fetchTNEBData(consumerNo: string | number): Promise<string> {
   const urlencoded = new URLSearchParams();
   // Ensure the actual consumer number is passed to TNEB if required by their API
   // urlencoded.append("consumerNo", value);
-  urlencoded.append("tokenID", process.env.TOKEN_ID || "");
+  urlencoded.append("tokenID", tokenId);
 
   const requestOptions: RequestInit = {
     method: "POST",
