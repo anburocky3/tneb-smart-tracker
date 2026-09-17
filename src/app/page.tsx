@@ -936,7 +936,7 @@ export default function MultiPropertyDashboard() {
                                     <div
                                       ref={provided.innerRef}
                                       {...provided.droppableProps}
-                                      className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4 md:gap-6 min-h-[50px] animate-in slide-in-from-top-2 duration-200"
+                                      className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4 md:gap-6 min-h-12.5 animate-in slide-in-from-top-2 duration-200"
                                     >
                                       {meterList.map((conn, index) => {
                                         const data =

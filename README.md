@@ -89,6 +89,8 @@ npm run dev
 
 Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
 
+### [API Endpoint](./docs/api/meter-readings.md)
+
 ## 👨‍💻 Credits
 
 **Designed & Developed by:** [Anbuselvan Annamalai](https://anbuselvan-annamalai.com) (Anbu)
