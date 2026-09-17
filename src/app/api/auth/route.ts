@@ -4,61 +4,78 @@ import { SignJWT } from "jose";
 import { cookies } from "next/headers";
 
 const SECRET_KEY = new TextEncoder().encode(
-  process.env.JWT_SECRET_KEY ||
-    "fallback_super_secret_key_change_in_production",
+  process.env.JWT_SECRET_KEY || "default_secret_key",
 );
 
 export async function POST(req: Request) {
   try {
-    const { pin } = await req.json();
+    const { email, pin } = await req.json();
 
-    // 1. Search the tneb_pin collection for the matching PIN
-    const pinQuery = await adminDb
-      .collection("tneb_pin")
-      .where("pin", "==", pin)
+    if (!email || !pin) {
+      return NextResponse.json(
+        { success: false, error: "Email and PIN are required" },
+        { status: 400 },
+      );
+    }
+    // 1. Direct lookup using the normalized email document ID
+    const normalizedEmail = email.toLowerCase().trim();
+    const userDoc = await adminDb
+      .collection("tneb_users")
+      .doc(normalizedEmail)
       .get();
 
-    let isValid = false;
-
-    if (!pinQuery.empty) {
-      // 2. We found the PIN! Now check if it is active.
-      const pinData = pinQuery.docs[0].data();
-
-      // We assume it's active unless explicitly marked as false
-      if (pinData.isActive !== false) {
-        isValid = true;
-      }
-    } else if (pin === "1234") {
-      // Fallback: If you haven't created the collection yet, let 1234 work
-      // so you don't lock yourself out during setup!
-      isValid = true;
+    // Check if the user document exists at all
+    if (!userDoc.exists) {
+      return NextResponse.json(
+        { success: false, error: "Invalid email or PIN." },
+        { status: 401 },
+      );
     }
 
-    if (isValid) {
-      // 3. Create the secure JWT token
-      const token = await new SignJWT({ authenticated: true })
-        .setProtectedHeader({ alg: "HS256" })
-        .setIssuedAt()
-        .setExpirationTime("24h") // Session lasts 24 hours
-        .sign(SECRET_KEY);
+    const userData = userDoc.data();
 
-      // 4. Set the HTTP-Only cookie securely
-      (await cookies()).set("tneb_auth_token", token, {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === "production",
-        sameSite: "strict",
-        maxAge: 60 * 60 * 24, // 1 day
-        path: "/",
-      });
-
-      return NextResponse.json({ success: true });
+    // 2. Validate the PIN (Direct string comparison for now)
+    if (!userData || userData.pin !== pin) {
+      return NextResponse.json(
+        { success: false, error: "Invalid email or PIN." },
+        { status: 401 },
+      );
     }
 
-    return NextResponse.json(
-      { success: false, error: "Invalid or inactive PIN." },
-      { status: 401 },
-    );
+    // 3. Check if the user is active
+    if (userData.isActive === false) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: "Your account is inactive. Please contact support.",
+        },
+        { status: 403 },
+      );
+    }
+
+    // 4. Create the secure JWT token using the email as the stable identifier
+    const token = await new SignJWT({
+      userId: userData.email,
+      authenticated: true,
+    })
+      .setProtectedHeader({ alg: "HS256" })
+      .setIssuedAt()
+      .setExpirationTime("24h")
+      .sign(SECRET_KEY);
+
+    // 5. Set the HTTP-Only cookie securely
+    const cookieStore = await cookies();
+    cookieStore.set("tneb_auth_token", token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "strict",
+      maxAge: 60 * 60 * 24, // 1 day
+      path: "/",
+    });
+
+    return NextResponse.json({ success: true });
   } catch (error) {
+    // console.error("Login Error:", error);
     return NextResponse.json(
       { success: false, error: "Server error" },
       { status: 500 },

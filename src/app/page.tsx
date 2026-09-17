@@ -336,7 +336,7 @@ export default function MultiPropertyDashboard() {
 
   if (isFetchingDB) {
     return (
-      <div className="min-h-[100dvh] bg-[#f8fafc] flex flex-col items-center justify-center">
+      <div className="min-h-dvh bg-[#f8fafc] flex flex-col items-center justify-center">
         <Loader2 className="w-10 h-10 animate-spin text-indigo-500 mb-4" />
         <p className="text-slate-500 font-medium">
           Loading your data from database...
@@ -346,7 +346,7 @@ export default function MultiPropertyDashboard() {
   }
 
   return (
-    <div className="flex h-[100dvh] bg-[#f8fafc] font-sans text-slate-900 overflow-hidden">
+    <div className="flex h-dvh bg-[#f8fafc] font-sans text-slate-900 overflow-hidden">
       {/* Desktop Sidebar (Hidden on Mobile) */}
       <aside className="w-72 bg-white border-r border-slate-100 shrink-0 hidden md:flex flex-col h-full z-10">
         <div className="p-6 border-b border-slate-100 flex items-center gap-2">
@@ -437,7 +437,7 @@ export default function MultiPropertyDashboard() {
                 <h2 className="text-2xl md:text-3xl font-bold tracking-tight text-slate-900">
                   EB Smart Dashboard
                 </h2>
-                <p className="text-slate-500 text-xs md:text-sm mt-0.5 md:mt-1 truncate max-w-[280px] sm:max-w-md">
+                <p className="text-slate-500 text-xs md:text-sm mt-0.5 md:mt-1 truncate max-w-70 sm:max-w-md">
                   Multi-location consumption tracking
                 </p>
               </div>

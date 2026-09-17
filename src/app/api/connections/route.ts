@@ -9,20 +9,38 @@ const SECRET_KEY = new TextEncoder().encode(
 
 async function verifyAuth() {
   const token = (await cookies()).get("tneb_auth_token")?.value;
-  if (!token) return false;
+  if (!token) return null;
 
   try {
-    await jwtVerify(token, SECRET_KEY);
-    return true;
+    const { payload } = await jwtVerify(token, SECRET_KEY);
+    const userId = payload.userId as string;
+
+    // Verify that the user still exists and is active in the database
+    const userQuery = await adminDb
+      .collection("tneb_users")
+      .where("email", "==", userId)
+      .get();
+
+    // console.log(
+    //   `User query for userId ${userId}:`,
+    //   userQuery.empty ? "No user found" : "User found",
+    // ); // Debugging log
+
+    if (userQuery.empty) return null;
+
+    const userData = userQuery.docs[0].data();
+    if (userData.isActive === false) return null;
+
+    return userId;
   } catch (err) {
-    return false;
+    return null;
   }
 }
 
-// GET: Fetch all connections
+// GET: Fetch all connections for the current user
 export async function GET() {
-  const isAuth = await verifyAuth();
-  if (!isAuth) {
+  const userId = await verifyAuth();
+  if (!userId) {
     return NextResponse.json(
       { success: false, error: "Unauthorized access" },
       { status: 401 },
@@ -32,23 +50,41 @@ export async function GET() {
   try {
     const snapshot = await adminDb
       .collection("tneb_connections")
+      .where("userId", "==", userId)
       .orderBy("createdAt", "desc")
       .get();
+
     const connections = snapshot.docs.map((doc) => ({
       id: doc.id,
       ...doc.data(),
     }));
+
+    console.log(`Fetching connections for userId: ${userId}`); // Debugging log
+    console.log(`Connections fetched:`, connections); // Debugging log
+
     return NextResponse.json(connections);
   } catch (error) {
     return NextResponse.json(
-      { success: false, error: "Failed to fetch connections" },
+      {
+        success: false,
+        error: "Failed to fetch connections",
+        details: error instanceof Error ? error.message : String(error),
+      },
       { status: 500 },
     );
   }
 }
 
-// POST: Add new connections
+// POST: Add new connections for the current user
 export async function POST(req: Request) {
+  const userId = await verifyAuth();
+  if (!userId) {
+    return NextResponse.json(
+      { success: false, error: "Unauthorized access" },
+      { status: 401 },
+    );
+  }
+
   try {
     const body = await req.json();
     const itemsToProcess = Array.isArray(body.connections)
@@ -62,9 +98,11 @@ export async function POST(req: Request) {
 
       const existingQuery = await collectionRef
         .where("consumerNo", "==", item.consumerNo)
+        .where("userId", "==", userId)
         .get();
       if (existingQuery.empty) {
         await collectionRef.add({
+          userId,
           nickname: item.nickname,
           consumerNo: item.consumerNo,
           tokenId: item.tokenId || "",
@@ -83,8 +121,16 @@ export async function POST(req: Request) {
   }
 }
 
-// PUT: Edit an existing connection
+// PUT: Edit an existing connection owned by the current user
 export async function PUT(req: Request) {
+  const userId = await verifyAuth();
+  if (!userId) {
+    return NextResponse.json(
+      { success: false, error: "Unauthorized access" },
+      { status: 401 },
+    );
+  }
+
   try {
     const body = await req.json();
     const { oldConsumerNo, nickname, consumerNo, tokenId, location } = body;
@@ -99,11 +145,12 @@ export async function PUT(req: Request) {
     const collectionRef = adminDb.collection("tneb_connections");
     const snapshot = await collectionRef
       .where("consumerNo", "==", oldConsumerNo)
+      .where("userId", "==", userId)
       .get();
 
     if (snapshot.empty) {
       return NextResponse.json(
-        { success: false, error: "Connection not found" },
+        { success: false, error: "Connection not found or unauthorized" },
         { status: 404 },
       );
     }
@@ -127,8 +174,16 @@ export async function PUT(req: Request) {
   }
 }
 
-// DELETE: Remove a connection
+// DELETE: Remove a connection owned by the current user
 export async function DELETE(req: Request) {
+  const userId = await verifyAuth();
+  if (!userId) {
+    return NextResponse.json(
+      { success: false, error: "Unauthorized access" },
+      { status: 401 },
+    );
+  }
+
   try {
     const { searchParams } = new URL(req.url);
     const consumerNo = searchParams.get("consumerNo");
@@ -143,6 +198,7 @@ export async function DELETE(req: Request) {
     const collectionRef = adminDb.collection("tneb_connections");
     const snapshot = await collectionRef
       .where("consumerNo", "==", consumerNo)
+      .where("userId", "==", userId)
       .get();
 
     if (!snapshot.empty) {
