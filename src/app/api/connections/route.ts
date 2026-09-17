@@ -15,16 +15,10 @@ async function verifyAuth() {
     const { payload } = await jwtVerify(token, SECRET_KEY);
     const userId = payload.userId as string;
 
-    // Verify that the user still exists and is active in the database
     const userQuery = await adminDb
       .collection("tneb_users")
       .where("email", "==", userId)
       .get();
-
-    // console.log(
-    //   `User query for userId ${userId}:`,
-    //   userQuery.empty ? "No user found" : "User found",
-    // ); // Debugging log
 
     if (userQuery.empty) return null;
 
@@ -34,6 +28,57 @@ async function verifyAuth() {
     return userId;
   } catch (err) {
     return null;
+  }
+}
+
+// PATCH: Update sort order of meters or the priority of locations
+export async function PATCH(req: Request) {
+  const userId = await verifyAuth();
+  if (!userId) {
+    return NextResponse.json(
+      { success: false, error: "Unauthorized access" },
+      { status: 401 },
+    );
+  }
+
+  try {
+    const body = await req.json();
+    const { orderedConsumerNos, locationOrder } = body;
+    const batch = adminDb.batch();
+    const collectionRef = adminDb.collection("tneb_connections");
+    const snapshot = await collectionRef.where("userId", "==", userId).get();
+
+    const docMap = new Map();
+    snapshot.docs.forEach((doc) => {
+      docMap.set(doc.data().consumerNo, doc.ref);
+    });
+
+    // 1. Handle Meter Ordering
+    if (Array.isArray(orderedConsumerNos)) {
+      orderedConsumerNos.forEach((consumerNo, index) => {
+        const ref = docMap.get(consumerNo);
+        if (ref) batch.update(ref, { sortOrder: index });
+      });
+    }
+
+    // 2. Handle Location Priority
+    if (Array.isArray(locationOrder)) {
+      snapshot.docs.forEach((doc) => {
+        const data = doc.data();
+        const priority = locationOrder.indexOf(data.location);
+        if (priority !== -1) {
+          batch.update(doc.ref, { locationPriority: priority });
+        }
+      });
+    }
+
+    await batch.commit();
+    return NextResponse.json({ success: true });
+  } catch (error) {
+    return NextResponse.json(
+      { success: false, error: "Failed to update order" },
+      { status: 500 },
+    );
   }
 }
 
@@ -51,16 +96,14 @@ export async function GET() {
     const snapshot = await adminDb
       .collection("tneb_connections")
       .where("userId", "==", userId)
-      .orderBy("createdAt", "desc")
+      .orderBy("locationPriority", "asc")
+      .orderBy("sortOrder", "asc")
       .get();
 
     const connections = snapshot.docs.map((doc) => ({
       id: doc.id,
       ...doc.data(),
     }));
-
-    console.log(`Fetching connections for userId: ${userId}`); // Debugging log
-    console.log(`Connections fetched:`, connections); // Debugging log
 
     return NextResponse.json(connections);
   } catch (error) {
@@ -100,13 +143,37 @@ export async function POST(req: Request) {
         .where("consumerNo", "==", item.consumerNo)
         .where("userId", "==", userId)
         .get();
+
       if (existingQuery.empty) {
+        // Determine locationPriority
+        let locationPriority = 999;
+        const locQuery = await collectionRef
+          .where("userId", "==", userId)
+          .where("location", "==", item.location)
+          .limit(1)
+          .get();
+
+        const allConnections = await collectionRef
+          .where("userId", "==", userId)
+          .get();
+
+        if (!locQuery.empty) {
+          locationPriority = locQuery.docs[0].data().locationPriority ?? 999;
+        } else {
+          const uniqueLocs = new Set(
+            allConnections.docs.map((d) => d.data().location),
+          );
+          locationPriority = uniqueLocs.size;
+        }
+
         await collectionRef.add({
           userId,
           nickname: item.nickname,
           consumerNo: item.consumerNo,
           tokenId: item.tokenId || "",
           location: item.location,
+          locationPriority,
+          sortOrder: allConnections.size, // Simple append
           createdAt: new Date(),
         });
         addedCount++;
@@ -155,16 +222,34 @@ export async function PUT(req: Request) {
       );
     }
 
-    // Update the document
     const docId = snapshot.docs[0].id;
-    await collectionRef.doc(docId).update({
+    const updateData: any = {
       nickname,
       consumerNo,
       tokenId,
       location,
       updatedAt: new Date(),
-    });
+    };
 
+    // If location changed, we should ideally update priority.
+    // For simplicity, we'll let the user reorder or assign a default.
+    if (location) {
+      const locQuery = await collectionRef
+        .where("userId", "==", userId)
+        .where("location", "==", location)
+        .limit(1)
+        .get();
+      if (!locQuery.empty) {
+        updateData.locationPriority = locQuery.docs[0].data().locationPriority;
+      } else {
+        const allLocs = await collectionRef.where("userId", "==", userId).get();
+        updateData.locationPriority = new Set(
+          allLocs.docs.map((d) => d.data().location),
+        ).size;
+      }
+    }
+
+    await collectionRef.doc(docId).update(updateData);
     return NextResponse.json({ success: true });
   } catch (error) {
     return NextResponse.json(

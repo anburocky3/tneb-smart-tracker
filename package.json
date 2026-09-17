@@ -10,6 +10,7 @@
     "format": "biome format --write"
   },
   "dependencies": {
+    "@hello-pangea/dnd": "^18.0.1",
     "cheerio": "^1.2.0",
     "firebase-admin": "^14.4.0",
     "jose": "^6.2.12",
