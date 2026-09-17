@@ -175,6 +175,8 @@ export async function POST(req: Request) {
           locationPriority,
           sortOrder: allConnections.size, // Simple append
           createdAt: new Date(),
+          isUsageVacant: item.isUsageVacant || false,
+          description: item.description || "",
         });
         addedCount++;
       }
@@ -200,7 +202,7 @@ export async function PUT(req: Request) {
 
   try {
     const body = await req.json();
-    const { oldConsumerNo, nickname, consumerNo, tokenId, location } = body;
+    const { oldConsumerNo, nickname, consumerNo, tokenId, location, isUsageVacant, description } = body;
 
     if (!oldConsumerNo || !consumerNo) {
       return NextResponse.json(
@@ -228,6 +230,8 @@ export async function PUT(req: Request) {
       consumerNo,
       tokenId,
       location,
+      isUsageVacant: isUsageVacant !== undefined ? isUsageVacant : false,
+      description: description !== undefined ? description : "",
       updatedAt: new Date(),
     };
 

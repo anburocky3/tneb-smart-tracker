@@ -26,6 +26,8 @@ import {
   LogOut,
   X,
   GripVertical,
+  Lightbulb,
+  Sparkles,
 } from "lucide-react";
 import {
   DragDropContext,
@@ -39,9 +41,12 @@ interface SavedConnection {
   consumerNo: string;
   tokenId: string;
   location: string;
+  isUsageVacant?: boolean;
+  description?: string;
 }
 
 const CACHE_TTL = 12 * 60 * 60 * 1000;
+const BI_MONTHLY_FREE_LIMIT = 200; // TNEB standard bimonthly 100 free units/month slab
 
 const LOCATION_COLORS = [
   "text-blue-600 bg-blue-50",
@@ -83,6 +88,8 @@ export default function MultiPropertyDashboard() {
   const [newConsumerNo, setNewConsumerNo] = useState("");
   const [newTokenId, setNewTokenId] = useState("");
   const [newLocation, setNewLocation] = useState("");
+  const [newIsVacant, setNewIsVacant] = useState(false);
+  const [newDescription, setNewDescription] = useState("");
 
   const bookmarkletRef = useRef<HTMLAnchorElement>(null);
   const mainScrollRef = useRef<HTMLElement>(null);
@@ -183,6 +190,8 @@ export default function MultiPropertyDashboard() {
     setNewConsumerNo("");
     setNewTokenId("");
     setNewLocation("");
+    setNewIsVacant(false);
+    setNewDescription("");
     setIsFormOpen(true);
     scrollToTop();
   };
@@ -194,6 +203,8 @@ export default function MultiPropertyDashboard() {
     setNewConsumerNo(conn.consumerNo);
     setNewTokenId(conn.tokenId);
     setNewLocation(conn.location);
+    setNewIsVacant(conn.isUsageVacant || false);
+    setNewDescription(conn.description || "");
     setIsFormOpen(true);
     scrollToTop();
   };
@@ -207,6 +218,8 @@ export default function MultiPropertyDashboard() {
       consumerNo: newConsumerNo.trim(),
       tokenId: newTokenId.trim(),
       location: newLocation.trim(),
+      isUsageVacant: newIsVacant,
+      description: newDescription.trim(),
     };
 
     try {
@@ -476,6 +489,59 @@ export default function MultiPropertyDashboard() {
     }
   };
 
+  // --- Bi-monthly Smart Suggestion Logic ---
+  const smartSuggestion = useMemo(() => {
+    if (connections.length === 0) return null;
+
+    const today = new Date();
+    // Bimonthly cycle estimation: 60-day cycles (Jan-Feb, Mar-Apr, May-Jun, Jul-Aug, Sep-Oct, Nov-Dec)
+    const isOddMonth = today.getMonth() % 2 === 0;
+    const currentMonthDays = new Date(
+      today.getFullYear(),
+      today.getMonth() + 1,
+      0,
+    ).getDate();
+    const nextMonthDays = new Date(
+      today.getFullYear(),
+      today.getMonth() + 2,
+      0,
+    ).getDate();
+
+    const daysRemainingInBimonthlyCycle = isOddMonth
+      ? currentMonthDays - today.getDate() + nextMonthDays
+      : currentMonthDays - today.getDate();
+
+    let bestMeter: SavedConnection | null = null;
+    let minUnits = Infinity;
+
+    connections.forEach((conn) => {
+      const summary = dashboardSummaries[conn.consumerNo];
+      const latestBill = summary?.bills?.[0];
+      const unitsUsed = latestBill?.units || 0;
+
+      // Prioritize marked vacant meters or meters with lowest units
+      const weightedUnits = conn.isUsageVacant ? unitsUsed - 50 : unitsUsed;
+
+      if (weightedUnits < minUnits) {
+        minUnits = weightedUnits;
+        bestMeter = conn;
+      }
+    });
+
+    const bestMeterUnits =
+      dashboardSummaries[
+        (bestMeter as SavedConnection | null)?.consumerNo || ""
+      ]?.bills?.[0]?.units || 0;
+    const unitsLeft = BI_MONTHLY_FREE_LIMIT - bestMeterUnits;
+
+    return {
+      bestMeter,
+      daysRemaining: daysRemainingInBimonthlyCycle,
+      unitsLeft,
+      isUnderFreeLimit: unitsLeft > 0,
+    };
+  }, [connections, dashboardSummaries]);
+
   if (isFetchingDB) {
     return (
       <div className="min-h-dvh bg-[#f8fafc] flex flex-col items-center justify-center">
@@ -539,7 +605,14 @@ export default function MultiPropertyDashboard() {
                           }
                           className="w-full flex items-center justify-between px-3 py-2 rounded-xl transition-all text-xs text-left truncate text-slate-600 hover:bg-slate-50 group"
                         >
-                          <span className="truncate">{conn.nickname}</span>
+                          <div className="flex items-center gap-1.5 truncate">
+                            {(
+                              smartSuggestion?.bestMeter as SavedConnection | null
+                            )?.consumerNo === conn.consumerNo && (
+                              <Sparkles className="w-3 h-3 text-amber-500 shrink-0" />
+                            )}
+                            <span className="truncate">{conn.nickname}</span>
+                          </div>
                           <ChevronRight className="w-3 h-3 opacity-0 group-hover:opacity-100 shrink-0" />
                         </button>
                       ))}
@@ -573,7 +646,7 @@ export default function MultiPropertyDashboard() {
                   EB Smart Dashboard
                 </h2>
                 <p className="text-slate-500 text-xs md:text-sm mt-0.5 md:mt-1 truncate max-w-70 sm:max-w-md">
-                  Multi-location consumption tracking
+                  Multi-location bimonthly consumption tracking
                 </p>
               </div>
             </div>
@@ -639,6 +712,56 @@ export default function MultiPropertyDashboard() {
         </div>
 
         <div className="max-w-7xl mx-auto px-4 md:px-10 mt-6 space-y-8">
+          {/* Bi-Monthly Smart Suggestion Banner */}
+          {smartSuggestion && smartSuggestion.bestMeter && (
+            <div className="bg-linear-to-r from-indigo-50 via-blue-50 to-indigo-50/50 border border-indigo-100 p-4 md:p-5 rounded-3xl flex items-start gap-4 shadow-sm animate-in fade-in slide-in-from-bottom-4">
+              <div className="p-2.5 bg-indigo-600 text-white rounded-2xl shadow-sm shadow-indigo-200 shrink-0">
+                <Lightbulb className="w-5 h-5" />
+              </div>
+              <div className="space-y-1.5 flex-1">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <h4 className="font-bold text-indigo-950 text-sm md:text-base">
+                    Bi-Monthly Slab Optimization
+                  </h4>
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-700 border border-indigo-200 uppercase">
+                    2-Month Cycle
+                  </span>
+                </div>
+                <p className="text-slate-700 text-xs md:text-sm leading-relaxed">
+                  Approximately{" "}
+                  <strong className="text-indigo-900 font-semibold">
+                    {smartSuggestion.daysRemaining} days remaining
+                  </strong>{" "}
+                  in the current 2-month billing period. Recommended property:
+                  <span className="inline-flex items-center gap-1 mx-1.5 px-2.5 py-0.5 bg-white border border-indigo-200 text-indigo-900 rounded-lg font-bold shadow-xs text-xs">
+                    <Home className="w-3 h-3 text-indigo-600" />
+                    {
+                      (smartSuggestion?.bestMeter as SavedConnection | null)
+                        ?.nickname
+                    }
+                  </span>
+                  {smartSuggestion.isUnderFreeLimit ? (
+                    <>
+                      has{" "}
+                      <strong className="text-emerald-600 font-bold">
+                        {smartSuggestion.unitsLeft} units left
+                      </strong>{" "}
+                      in the free slab (up to {BI_MONTHLY_FREE_LIMIT} units).
+                      Shift high-load appliances here to maximize free
+                      electricity.
+                    </>
+                  ) : (
+                    <>
+                      has the lowest utilization among all meters. Shift
+                      consumption here to avoid crossing higher tiered tariff
+                      slabs.
+                    </>
+                  )}
+                </p>
+              </div>
+            </div>
+          )}
+
           {connections.length > 0 && (
             <div className="flex items-center gap-2 overflow-x-auto pb-2 scrollbar-none overscroll-x-contain snap-x">
               <Filter className="w-4 h-4 text-slate-400 mr-1 shrink-0 snap-start" />
@@ -751,7 +874,7 @@ export default function MultiPropertyDashboard() {
                 onSubmit={handleFormSubmit}
                 className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-5"
               >
-                <div>
+                <div className="lg:col-span-2">
                   <label className="block text-xs font-semibold text-slate-500 mb-1.5 uppercase">
                     Location / Sub-division
                   </label>
@@ -808,6 +931,33 @@ export default function MultiPropertyDashboard() {
                     className="w-full px-4 py-3 md:py-2.5 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500 outline-none shadow-sm font-mono"
                     required
                   />
+                </div>
+                <div className="lg:col-span-2">
+                  <label className="block text-xs font-semibold text-slate-500 mb-1.5 uppercase">
+                    Description / Appliances
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="e.g. Main House, AC, Geyser"
+                    value={newDescription}
+                    onChange={(e) => setNewDescription(e.target.value)}
+                    className="w-full px-4 py-3 md:py-2.5 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500 outline-none shadow-sm"
+                  />
+                </div>
+                <div className="flex items-center gap-3 p-3 border border-slate-200 rounded-xl bg-slate-50">
+                  <input
+                    type="checkbox"
+                    id="is-vacant"
+                    checked={newIsVacant}
+                    onChange={(e) => setNewIsVacant(e.target.checked)}
+                    className="w-5 h-5 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                  />
+                  <label
+                    htmlFor="is-vacant"
+                    className="text-sm font-medium text-slate-700 cursor-pointer"
+                  >
+                    Mark as Vacant / Low Usage
+                  </label>
                 </div>
                 <div className="sm:col-span-2 lg:col-span-4 flex flex-col-reverse sm:flex-row justify-end gap-3 mt-2 md:mt-4 md:border-t border-slate-100 md:pt-4">
                   <button
@@ -942,6 +1092,10 @@ export default function MultiPropertyDashboard() {
                                         const data =
                                           dashboardSummaries[conn.consumerNo];
                                         const latestBill = data?.bills?.[0];
+                                        const isBestMeter =
+                                          (
+                                            smartSuggestion?.bestMeter as SavedConnection | null
+                                          )?.consumerNo === conn.consumerNo;
 
                                         return (
                                           <Draggable
@@ -958,7 +1112,11 @@ export default function MultiPropertyDashboard() {
                                                     `/meter/${conn.consumerNo}`,
                                                   )
                                                 }
-                                                className="bg-white p-5 md:p-6 rounded-3xl shadow-sm border border-slate-100 hover:shadow-md hover:border-indigo-100 transition-all cursor-pointer relative group flex flex-col active:scale-[0.98]"
+                                                className={`bg-white p-5 md:p-6 rounded-3xl shadow-sm border transition-all cursor-pointer relative group flex flex-col active:scale-[0.98] ${
+                                                  isBestMeter
+                                                    ? "border-indigo-300 ring-2 ring-indigo-500/20 shadow-indigo-50"
+                                                    : "border-slate-100 hover:shadow-md hover:border-indigo-100"
+                                                }`}
                                               >
                                                 <div
                                                   {...provided.dragHandleProps}
@@ -996,12 +1154,30 @@ export default function MultiPropertyDashboard() {
                                                     <Home className="w-4 h-4 md:w-5 md:h-5" />
                                                   </div>
                                                   <div className="space-y-0.5 overflow-hidden">
-                                                    <h4 className="font-bold text-sm md:text-base text-slate-900 leading-snug truncate">
-                                                      {conn.nickname}
-                                                    </h4>
+                                                    <div className="flex items-center gap-1.5 flex-wrap">
+                                                      <h4 className="font-bold text-sm md:text-base text-slate-900 leading-snug truncate">
+                                                        {conn.nickname}
+                                                      </h4>
+                                                      {isBestMeter && (
+                                                        <span className="inline-flex items-center gap-1 text-[10px] font-bold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded-md uppercase border border-indigo-200">
+                                                          <Sparkles className="w-3 h-3 fill-indigo-600 text-indigo-600" />
+                                                          Best to Use
+                                                        </span>
+                                                      )}
+                                                      {conn.isUsageVacant && (
+                                                        <span className="text-[10px] font-bold text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded-md uppercase border border-amber-100">
+                                                          Vacant
+                                                        </span>
+                                                      )}
+                                                    </div>
                                                     <p className="text-[11px] md:text-xs text-slate-400 font-mono truncate">
                                                       {conn.consumerNo}
                                                     </p>
+                                                    {conn.description && (
+                                                      <p className="text-[10px] text-slate-500 italic truncate">
+                                                        {conn.description}
+                                                      </p>
+                                                    )}
                                                   </div>
                                                 </div>
 
