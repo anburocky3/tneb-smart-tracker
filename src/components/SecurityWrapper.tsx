@@ -60,7 +60,11 @@ export default function SecurityWrapper({
   };
 
   // Allow access to public routes (like /register)
-  const isPublicRoute = pathname === "/register";
+  const isPublicRoute =
+    pathname === "/register" ||
+    pathname === "/super/login" ||
+    pathname === "/super" ||
+    pathname.startsWith("/api/super/");
 
   if (!isAuthenticated && !isPublicRoute) {
     return (

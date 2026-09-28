@@ -23,3 +23,4 @@ All notable changes to Smart EB Tracker are documented here.
 - Reading dates cannot be in the future or before the cycle start date.
 - TNEB `DD/MM/YYYY` dates and normalized ISO dates are supported.
 - Push notifications require VAPID keys, a cron secret, browser permission, and one-time alert activation on each device.
+- Super-admin control room at `/super/login` with masked-by-default users, meters, readings, push-device details, and explicit reveal mode.

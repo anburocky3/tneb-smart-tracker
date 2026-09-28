@@ -411,7 +411,7 @@ export default function ConsumerDetailsPage() {
             </div>
           )}
           {pendingPayment && !isFreeMonth && (
-            <div className="bg-linear-to-r from-rose-500 to-red-500 text-white p-5 sm:p-6 rounded-3xl shadow-sm flex items-start gap-3.5">
+            <div className="col-span-2 bg-linear-to-r from-rose-500 to-red-500 text-white p-5 sm:p-6 rounded-3xl shadow-sm flex items-start gap-3.5">
               <AlertCircle className="w-7 h-7 sm:w-8 sm:h-8 shrink-0 opacity-90" />
               <div>
                 <h3 className="font-bold text-base sm:text-lg">

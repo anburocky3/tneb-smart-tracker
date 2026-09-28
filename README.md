@@ -10,6 +10,10 @@ A modern, cloud-synced TNEB (Tamil Nadu Electricity Board) EB management dashboa
 
 ![Smart EB Tracker Hero](docs/screenshots/hero.png)
 
+> ### 🎉 Live Preview: [https://tneb-smart.vercel.app](https://tneb-smart.vercel.app)
+>
+> Safe to use with your own credentials
+
 ## 👋 What is Smart EB Tracker?
 
 Smart EB Tracker is a private dashboard for people managing electricity connections across multiple homes, shops, rental properties, or other locations. It brings TNEB bill history, payment status, consumption trends, tariff slabs, and manual meter readings into one place.
@@ -44,6 +48,7 @@ Manual readings entered for the same consumer number and date replace the previo
 - **🧮 Manual Reading & Forecasting:** Records one reading per meter per date, projects 60-day usage, estimates the bill with Tamil Nadu domestic slabs, and shows the daily allowance needed to stay within 200 free units.
 - **🔁 Same-Location Load Shifting:** Compares projected usage across meters in the same location and suggests moving heavy loads when another meter has unused free allowance.
 - **📲 Installable PWA & Alerts:** Install Minnal on a phone or desktop, register each device for push alerts, receive monthly meter-reading reminders, and get notified when a new bill is detected or marked paid.
+- **🛡️ Super Admin Control Room:** A separate `/super/login` entry point lets the configured administrator review users, linked meters, manual-reading activity, and push-device registrations. Email, PIN, token, and push endpoint values are masked until explicitly revealed.
 
 ---
 
@@ -52,6 +57,8 @@ Manual readings entered for the same consumer number and date replace the previo
 ![Screenshot #1](./docs/screenshots/1.png)
 ![Screenshot #2](./docs/screenshots/2.png)
 ![Screenshot #3](./docs/screenshots/3.png)
+
+![Admin Panel](./docs/screenshots/admin.png)
 
 ## 🛠️ Tech Stack
 
@@ -127,6 +134,17 @@ CRON_SECRET="a-long-random-secret"
 ```
 
 After signing in, select **Enable alerts** on each device. Vercel runs the protected daily notification job from `vercel.json`; it sends monthly reading reminders and detects new or paid TNEB bills. The official TNEB bill remains the source of truth.
+
+### 6. Configure the super admin
+
+Set separate administrator credentials in the server environment. These are not regular user credentials:
+
+```env
+SUPER_ADMIN_EMAIL="admin@example.com"
+SUPER_ADMIN_PIN="use-a-long-admin-pin"
+```
+
+Open `/super/login` to access the control room. The admin session is stored in a separate HttpOnly cookie and expires after eight hours. Keep the admin PIN and `JWT_SECRET_KEY` private.
 
 ### [API Endpoint](./docs/api/meter-readings.md)
 
