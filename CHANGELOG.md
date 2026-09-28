@@ -14,9 +14,12 @@ All notable changes to Smart EB Tracker are documented here.
 - Dashboard reading actions on meter cards and the individual meter detail page.
 - Same-location load-shift recommendations with estimated bill savings.
 - Guest-facing README documentation explaining the product workflow, data requirements, limitations, and forecast behavior.
+- Installable PWA support with manifest metadata, service worker caching hooks, and device-specific push notification registration.
+- Daily protected notification job for monthly meter-reading reminders and new or paid TNEB bill updates.
 
 ### Validation
 
 - Manual readings cannot be lower than the official cycle-start kWh value.
 - Reading dates cannot be in the future or before the cycle start date.
 - TNEB `DD/MM/YYYY` dates and normalized ISO dates are supported.
+- Push notifications require VAPID keys, a cron secret, browser permission, and one-time alert activation on each device.

@@ -35,6 +35,7 @@ import {
   type ManualReading,
 } from "@/components/MeterReadingModal";
 import { computeTnebBill, projectMeterReading } from "@/lib/projection";
+import PushNotificationPrompt from "@/components/PushNotificationPrompt";
 import {
   DragDropContext,
   Droppable,
@@ -655,18 +656,45 @@ export default function MultiPropertyDashboard() {
 
   if (isFetchingDB) {
     return (
-      <div className="min-h-dvh bg-[#f8fafc] flex flex-col items-center justify-center">
-        <Loader2 className="w-10 h-10 animate-spin text-indigo-500 mb-4" />
-        <p className="text-slate-500 font-medium">
-          Loading your data from database...
-        </p>
+      <div className="relative flex min-h-dvh flex-col items-center justify-center overflow-hidden bg-[#f8fafc] px-4">
+        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(99,102,241,0.12),transparent_32%)]" />
+        <div className="relative flex flex-col items-center">
+          <div className="relative mb-8 flex h-36 w-36 items-center justify-center">
+            <div className="absolute inset-0 rounded-full border border-indigo-200/70 animate-ping [animation-duration:2.4s]" />
+            <div className="absolute inset-3 rounded-full border border-indigo-300/60 animate-pulse" />
+            <div className="absolute inset-7 rounded-full border-4 border-indigo-100 border-t-indigo-600 animate-spin [animation-duration:1.4s]" />
+            <div className="relative flex h-16 w-16 items-center justify-center rounded-2xl border border-indigo-200 bg-white shadow-lg shadow-indigo-200/50">
+              <Zap className="h-8 w-8 animate-pulse fill-yellow-400 text-indigo-600" />
+            </div>
+            <span className="absolute -right-1 top-5 h-2.5 w-2.5 rounded-full bg-emerald-400 shadow-lg shadow-emerald-300 animate-bounce" />
+            <span className="absolute -bottom-1 left-6 h-2 w-2 rounded-full bg-amber-400 shadow-lg shadow-amber-300 animate-bounce [animation-delay:250ms]" />
+          </div>
+          <div className="mb-5 flex h-10 items-end gap-1.5">
+            {["h-3", "h-6", "h-4", "h-9", "h-7", "h-10", "h-5"].map(
+              (height, index) => (
+                <span
+                  key={height}
+                  className={`w-2 rounded-full bg-indigo-500/80 animate-pulse ${height}`}
+                  style={{ animationDelay: `${index * 120}ms` }}
+                />
+              ),
+            )}
+          </div>
+          <p className="flex items-center gap-2 text-sm font-bold text-slate-700">
+            <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
+            Loading your meter workspace
+          </p>
+          <p className="mt-1 text-xs text-slate-400">
+            Syncing saved connections and readings
+          </p>
+        </div>
       </div>
     );
   }
 
   return (
     <div className="flex min-h-dvh flex-col bg-[#f8fafc] font-sans text-slate-900 md:flex-row">
-      <aside className="fixed w-72 bg-white border-r border-slate-100 shrink-0 hidden md:flex flex-col h-full z-10">
+      <aside className="w-72 bg-white border-r border-slate-100 shrink-0 hidden md:flex flex-col h-full z-10">
         <div className="p-6 border-b border-slate-100 flex items-center gap-2">
           <Zap className="text-yellow-500 fill-yellow-500 w-6 h-6 shrink-0" />
           <h1 className="text-xl font-bold tracking-tight text-slate-900 truncate">
@@ -762,6 +790,7 @@ export default function MultiPropertyDashboard() {
               </div>
             </div>
             <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full md:w-auto mt-2 md:mt-0">
+              <PushNotificationPrompt />
               {connections.length > 0 && (
                 <>
                   <div className="relative w-full sm:w-64 md:w-48">

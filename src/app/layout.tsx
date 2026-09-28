@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import SecurityWrapper from "@/components/SecurityWrapper";
@@ -23,9 +23,18 @@ export const metadata: Metadata = {
   title: "Minnal - Tamil Nadu Electricity Board (TNEB) Bill Tracker",
   description:
     "Minnal is a web application that allows users to track their electricity bills from the Tamil Nadu Electricity Board (TNEB). It provides features such as bill history, payment status, and notifications for due dates.",
+  manifest: "/manifest.webmanifest",
 };
 
-export default async function RootLayout({ children }: { children: React.ReactNode }) {
+export const viewport: Viewport = {
+  themeColor: "#4f46e5",
+};
+
+export default async function RootLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
   let initialAuth = false;
   const cookieStore = await cookies();
   const token = cookieStore.get("tneb_auth_token")?.value;

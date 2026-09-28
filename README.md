@@ -43,6 +43,7 @@ Manual readings entered for the same consumer number and date replace the previo
 - **🏢 Location-Based EB Management:** Groups multiple meters by sub-division/location. Features comprehensive sorting (Highest Bill, Units, Pending Dues) and live search.
 - **🧮 Manual Reading & Forecasting:** Records one reading per meter per date, projects 60-day usage, estimates the bill with Tamil Nadu domestic slabs, and shows the daily allowance needed to stay within 200 free units.
 - **🔁 Same-Location Load Shifting:** Compares projected usage across meters in the same location and suggests moving heavy loads when another meter has unused free allowance.
+- **📲 Installable PWA & Alerts:** Install Minnal on a phone or desktop, register each device for push alerts, receive monthly meter-reading reminders, and get notified when a new bill is detected or marked paid.
 
 ---
 
@@ -113,6 +114,19 @@ npm run dev
 ```
 
 Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+
+### 5. Configure PWA notifications
+
+Generate a VAPID key pair with `bunx web-push generate-vapid-keys`, then add the values to your deployment environment:
+
+```env
+NEXT_PUBLIC_VAPID_PUBLIC_KEY="your-public-key"
+VAPID_PRIVATE_KEY="your-private-key"
+VAPID_SUBJECT="mailto:you@example.com"
+CRON_SECRET="a-long-random-secret"
+```
+
+After signing in, select **Enable alerts** on each device. Vercel runs the protected daily notification job from `vercel.json`; it sends monthly reading reminders and detects new or paid TNEB bills. The official TNEB bill remains the source of truth.
 
 ### [API Endpoint](./docs/api/meter-readings.md)
 
