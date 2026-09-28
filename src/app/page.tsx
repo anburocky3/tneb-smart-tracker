@@ -1224,10 +1224,17 @@ export default function MultiPropertyDashboard() {
                                                             Paid
                                                           </span>
                                                         ) : (
-                                                          <span className="flex items-center gap-1 text-[10px] md:text-xs font-bold text-rose-600 bg-rose-50 px-2 md:px-2.5 py-1 rounded-lg uppercase animate-pulse whitespace-nowrap">
-                                                            <AlertCircle className="w-3 h-3 md:w-3.5 md:h-3.5" />{" "}
-                                                            Due
-                                                          </span>
+                                                          <div className="flex flex-col items-end gap-1">
+                                                            <span className="flex items-center gap-1 text-[10px] md:text-xs font-bold text-rose-600 bg-rose-50 px-2 md:px-2.5 py-1 rounded-lg uppercase animate-ping whitespace-nowrap">
+                                                              <AlertCircle className="w-3 h-3 md:w-3.5 md:h-3.5" />{" "}
+                                                              Due
+                                                            </span>
+                                                            <span className="mt-3 animate-pulse text-[10px] md:text-xs font-semibold text-red-600 uppercase tracking-wide">
+                                                              {
+                                                                latestBill.dueDate
+                                                              }
+                                                            </span>
+                                                          </div>
                                                         )}
                                                       </div>
                                                     </div>
