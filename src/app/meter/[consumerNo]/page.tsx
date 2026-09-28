@@ -31,6 +31,13 @@ import {
   Gauge,
   HelpCircle,
 } from "lucide-react";
+import {
+  MeterReadingButton,
+  MeterReadingModal,
+  type ManualReading,
+} from "@/components/MeterReadingModal";
+import { computeTnebBill, projectMeterReading } from "@/lib/projection";
+import { ProjectionCard } from "@/components/ProjectionCard";
 
 const FREE_LIMIT = 200;
 const TIER_LIMIT = 500;
@@ -44,6 +51,8 @@ export default function ConsumerDetailsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [connDetails, setConnDetails] = useState<any>(null);
+  const [readings, setReadings] = useState<ManualReading[]>([]);
+  const [showReadingModal, setShowReadingModal] = useState(false);
 
   // Interactive Simulator State
   const [simAcHours, setSimAcHours] = useState(4);
@@ -84,6 +93,11 @@ export default function ConsumerDetailsPage() {
 
         if (tnebResult.success) {
           setData(tnebResult);
+          const readingsRes = await fetch(
+            `/api/readings?consumerNo=${encodeURIComponent(connection.consumerNo)}`,
+          );
+          const readingsResult = await readingsRes.json();
+          if (readingsResult.success) setReadings(readingsResult.readings);
         } else {
           setError(tnebResult.error || "Failed to fetch meter details.");
         }
@@ -96,34 +110,6 @@ export default function ConsumerDetailsPage() {
 
     fetchMeterData();
   }, [consumerNo]);
-
-  // Tariff calculation engine (Tamil Nadu bi-monthly domestic slabs)
-  const calculateEstimatedBill = (units: number) => {
-    if (units <= FREE_LIMIT) return 0;
-
-    let total = 0;
-    if (units <= 400) {
-      total = (units - 200) * 4.7;
-    } else if (units <= 500) {
-      total = 200 * 4.7 + (units - 400) * 6.3;
-    } else if (units <= 600) {
-      total = 300 * 4.7 + 100 * 6.3 + (units - 500) * 8.4;
-    } else if (units <= 800) {
-      total = 300 * 4.7 + 100 * 6.3 + 100 * 8.4 + (units - 600) * 9.45;
-    } else if (units <= 1000) {
-      total =
-        300 * 4.7 + 100 * 6.3 + 100 * 8.4 + 200 * 9.45 + (units - 800) * 10.5;
-    } else {
-      total =
-        300 * 4.7 +
-        100 * 6.3 +
-        100 * 8.4 +
-        200 * 9.45 +
-        200 * 10.5 +
-        (units - 1000) * 11.55;
-    }
-    return Math.round(total);
-  };
 
   // 60-day bi-monthly calculations
   const biMonthlyStats = useMemo(() => {
@@ -175,8 +161,8 @@ export default function ConsumerDetailsPage() {
     const geyserUnits = Math.round(simGeyserHours * 2.0 * 60);
     const baselineUnits = data?.bills?.[0]?.units || 0;
     const simulatedUnits = baselineUnits + acUnits + geyserUnits;
-    const simulatedBill = calculateEstimatedBill(simulatedUnits);
-    const baselineBill = calculateEstimatedBill(baselineUnits);
+    const simulatedBill = computeTnebBill(simulatedUnits);
+    const baselineBill = computeTnebBill(baselineUnits);
 
     return {
       addedUnits: acUnits + geyserUnits,
@@ -185,6 +171,19 @@ export default function ConsumerDetailsPage() {
       difference: simulatedBill - baselineBill,
     };
   }, [simAcHours, simGeyserHours, data]);
+
+  const latestOfficialBill = data?.bills?.[0];
+  const latestReading = readings[0];
+  const projection =
+    latestOfficialBill && latestReading
+      ? projectMeterReading({
+          initialKwh:
+            latestReading.cycleStartKwh ?? latestOfficialBill.kwhReading,
+          cycleStartDate:
+            latestReading.cycleStartDate ?? latestOfficialBill.date,
+          currentKwh: latestReading.currentKwh,
+        })
+      : null;
 
   if (loading) {
     return (
@@ -261,11 +260,15 @@ export default function ConsumerDetailsPage() {
                 </span>
               )}
             </div>
-            <p className="text-slate-500 text-xs sm:text-sm mt-1 font-mono break-all">
-              {consumerNo} • {data.consumer.address}
+            <p className="text-slate-500 text-xs sm:text-sm mt-1 break-all">
+              <span className="font-mono">{consumerNo}</span> •{" "}
+              {data.consumer.address}
             </p>
           </div>
           <div className="flex items-center gap-2">
+            {latestOfficialBill && (
+              <MeterReadingButton onClick={() => setShowReadingModal(true)} />
+            )}
             <span className="px-3 py-1.5 bg-slate-100 text-slate-600 text-xs font-semibold rounded-xl flex items-center gap-1.5">
               <Gauge className="w-3.5 h-3.5 text-indigo-600" />
               Sanctioned: {data.consumer.sanctionedLoad || "4 KW"}
@@ -360,6 +363,8 @@ export default function ConsumerDetailsPage() {
             </div>
           </div>
         )}
+
+        {projection && <ProjectionCard projection={projection} />}
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {isFreeMonth && (
@@ -820,6 +825,18 @@ export default function ConsumerDetailsPage() {
           </div>
         </div>
       </div>
+      {showReadingModal && latestOfficialBill && (
+        <MeterReadingModal
+          consumerNo={consumerNo}
+          cycleStartKwh={latestOfficialBill.kwhReading}
+          cycleStartDate={latestOfficialBill.date}
+          onClose={() => setShowReadingModal(false)}
+          onSaved={async (reading: ManualReading) => {
+            setReadings((previous) => [reading, ...previous]);
+            setShowReadingModal(false);
+          }}
+        />
+      )}
     </div>
   );
 }

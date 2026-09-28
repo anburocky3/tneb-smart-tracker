@@ -30,6 +30,12 @@ import {
   Sparkles,
 } from "lucide-react";
 import {
+  MeterReadingButton,
+  MeterReadingModal,
+  type ManualReading,
+} from "@/components/MeterReadingModal";
+import { computeTnebBill, projectMeterReading } from "@/lib/projection";
+import {
   DragDropContext,
   Droppable,
   Draggable,
@@ -105,6 +111,9 @@ export default function MultiPropertyDashboard() {
 
   const [toastMsg, setToastMsg] = useState("");
   const [isToastVisible, setIsToastVisible] = useState(false);
+  const [readingMeter, setReadingMeter] = useState<SavedConnection | null>(
+    null,
+  );
 
   const toastTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const hideTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -299,9 +308,16 @@ export default function MultiPropertyDashboard() {
         if (cachedStr) {
           const { data, timestamp } = JSON.parse(cachedStr);
           if (Date.now() - timestamp < CACHE_TTL) {
+            const readingsRes = await fetch(
+              `/api/readings?consumerNo=${encodeURIComponent(conn.consumerNo)}`,
+            );
+            const readingsResult = await readingsRes.json();
             setDashboardSummaries((prev) => ({
               ...prev,
-              [conn.consumerNo]: data,
+              [conn.consumerNo]: {
+                ...data,
+                readings: readingsResult.success ? readingsResult.readings : [],
+              },
             }));
             return;
           }
@@ -317,6 +333,11 @@ export default function MultiPropertyDashboard() {
       });
       const result = await res.json();
       if (result.success) {
+        const readingsRes = await fetch(
+          `/api/readings?consumerNo=${encodeURIComponent(conn.consumerNo)}`,
+        );
+        const readingsResult = await readingsRes.json();
+        result.readings = readingsResult.success ? readingsResult.readings : [];
         setDashboardSummaries((prev) => ({
           ...prev,
           [conn.consumerNo]: result,
@@ -542,6 +563,65 @@ export default function MultiPropertyDashboard() {
     };
   }, [connections, dashboardSummaries]);
 
+  const loadShiftRecommendations = useMemo(() => {
+    const recommendations: Array<{
+      source: SavedConnection;
+      target: SavedConnection;
+      savings: number;
+    }> = [];
+
+    for (const source of connections) {
+      const sourceData = dashboardSummaries[source.consumerNo];
+      const sourceBill = sourceData?.bills?.[0];
+      const sourceReading = sourceData?.readings?.[0];
+      if (!sourceBill || !sourceReading) continue;
+
+      const sourceProjection = projectMeterReading({
+        initialKwh: sourceReading.cycleStartKwh ?? sourceBill.kwhReading,
+        cycleStartDate: sourceReading.cycleStartDate ?? sourceBill.date,
+        currentKwh: sourceReading.currentKwh,
+      });
+      if (sourceProjection.projectedUnits <= BI_MONTHLY_FREE_LIMIT) continue;
+
+      const target = connections.find((candidate) => {
+        if (
+          candidate.consumerNo === source.consumerNo ||
+          candidate.location !== source.location
+        )
+          return false;
+        const targetData = dashboardSummaries[candidate.consumerNo];
+        const targetBill = targetData?.bills?.[0];
+        const targetReading = targetData?.readings?.[0];
+        if (!targetBill || !targetReading) return false;
+        const targetProjection = projectMeterReading({
+          initialKwh: targetReading.cycleStartKwh ?? targetBill.kwhReading,
+          cycleStartDate: targetReading.cycleStartDate ?? targetBill.date,
+          currentKwh: targetReading.currentKwh,
+        });
+        return targetProjection.projectedUnits < BI_MONTHLY_FREE_LIMIT;
+      });
+      if (!target) continue;
+
+      const targetData = dashboardSummaries[target.consumerNo];
+      const targetBill = targetData.bills[0];
+      const targetReading = targetData.readings[0];
+      const targetProjection = projectMeterReading({
+        initialKwh: targetReading.cycleStartKwh ?? targetBill.kwhReading,
+        cycleStartDate: targetReading.cycleStartDate ?? targetBill.date,
+        currentKwh: targetReading.currentKwh,
+      });
+      const shiftableUnits = Math.min(
+        sourceProjection.projectedUnits - BI_MONTHLY_FREE_LIMIT,
+        BI_MONTHLY_FREE_LIMIT - targetProjection.projectedUnits,
+      );
+      const savings =
+        computeTnebBill(sourceProjection.projectedUnits) -
+        computeTnebBill(sourceProjection.projectedUnits - shiftableUnits);
+      if (savings > 0) recommendations.push({ source, target, savings });
+    }
+    return recommendations;
+  }, [connections, dashboardSummaries]);
+
   if (isFetchingDB) {
     return (
       <div className="min-h-dvh bg-[#f8fafc] flex flex-col items-center justify-center">
@@ -759,6 +839,24 @@ export default function MultiPropertyDashboard() {
                   )}
                 </p>
               </div>
+            </div>
+          )}
+
+          {loadShiftRecommendations.length > 0 && (
+            <div className="space-y-2 rounded-3xl border border-amber-200 bg-amber-50 p-4 shadow-sm">
+              <div className="flex items-center gap-2 text-sm font-bold text-amber-900">
+                <Lightbulb className="h-4 w-4" /> Load shift opportunity
+              </div>
+              {loadShiftRecommendations.map(({ source, target, savings }) => (
+                <p
+                  key={`${source.consumerNo}-${target.consumerNo}`}
+                  className="text-xs leading-relaxed text-amber-900"
+                >
+                  Transfer heavy loads from <strong>{source.nickname}</strong>{" "}
+                  to <strong>{target.nickname}</strong> to save{" "}
+                  <strong>₹{savings.toLocaleString()}</strong>.
+                </p>
+              ))}
             </div>
           )}
 
@@ -1092,6 +1190,21 @@ export default function MultiPropertyDashboard() {
                                         const data =
                                           dashboardSummaries[conn.consumerNo];
                                         const latestBill = data?.bills?.[0];
+                                        const latestReading =
+                                          data?.readings?.[0];
+                                        const projection =
+                                          latestBill && latestReading
+                                            ? projectMeterReading({
+                                                initialKwh:
+                                                  latestReading.cycleStartKwh ??
+                                                  latestBill.kwhReading,
+                                                cycleStartDate:
+                                                  latestReading.cycleStartDate ??
+                                                  latestBill.date,
+                                                currentKwh:
+                                                  latestReading.currentKwh,
+                                              })
+                                            : null;
                                         const isBestMeter =
                                           (
                                             smartSuggestion?.bestMeter as SavedConnection | null
@@ -1237,11 +1350,35 @@ export default function MultiPropertyDashboard() {
                                                           </div>
                                                         )}
                                                       </div>
+                                                      {projection && (
+                                                        <div
+                                                          className={`rounded-xl px-3 py-2 text-xs font-semibold ${projection.projectedUnits <= BI_MONTHLY_FREE_LIMIT ? "bg-emerald-50 text-emerald-700" : "bg-rose-50 text-rose-700"}`}
+                                                        >
+                                                          Forecast:{" "}
+                                                          {
+                                                            projection.projectedUnits
+                                                          }{" "}
+                                                          units, ₹
+                                                          {projection.projectedBill.toLocaleString()}
+                                                        </div>
+                                                      )}
+                                                      <MeterReadingButton
+                                                        onClick={() =>
+                                                          setReadingMeter(conn)
+                                                        }
+                                                      />
                                                     </div>
                                                   ) : (
-                                                    <p className="text-[11px] md:text-xs text-slate-400 py-2 border-t border-slate-50 pt-3">
-                                                      No bills recorded yet.
-                                                    </p>
+                                                    <div className="space-y-3 border-t border-slate-50 pt-3">
+                                                      <p className="text-[11px] md:text-xs text-slate-400">
+                                                        No bills recorded yet.
+                                                      </p>
+                                                      <MeterReadingButton
+                                                        onClick={() =>
+                                                          setReadingMeter(conn)
+                                                        }
+                                                      />
+                                                    </div>
                                                   )}
                                                 </div>
                                               </div>
@@ -1267,6 +1404,34 @@ export default function MultiPropertyDashboard() {
           </DragDropContext>
         </div>
       </main>
+
+      {readingMeter &&
+        dashboardSummaries[readingMeter.consumerNo]?.bills?.[0] && (
+          <MeterReadingModal
+            consumerNo={readingMeter.consumerNo}
+            cycleStartKwh={
+              dashboardSummaries[readingMeter.consumerNo].bills[0].kwhReading
+            }
+            cycleStartDate={
+              dashboardSummaries[readingMeter.consumerNo].bills[0].date
+            }
+            onClose={() => setReadingMeter(null)}
+            onSaved={async (reading: ManualReading) => {
+              setDashboardSummaries((previous) => ({
+                ...previous,
+                [readingMeter.consumerNo]: {
+                  ...previous[readingMeter.consumerNo],
+                  readings: [
+                    reading,
+                    ...(previous[readingMeter.consumerNo]?.readings ?? []),
+                  ],
+                },
+              }));
+              setReadingMeter(null);
+              showToast(`Saved reading for ${readingMeter.nickname}`);
+            }}
+          />
+        )}
 
       <nav className="md:hidden fixed bottom-0 left-0 w-full bg-white/90 backdrop-blur-md border-t border-slate-200 flex items-end justify-around pb-6 pt-2 px-2 z-50 shadow-[0_-10px_40px_-15px_rgba(0,0,0,0.1)]">
         <button
