@@ -187,11 +187,40 @@ export default function ConsumerDetailsPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-[#f8fafc] flex flex-col items-center justify-center text-slate-400 p-4">
-        <Loader2 className="w-10 h-10 animate-spin text-indigo-500 mb-4" />
-        <p className="font-medium text-slate-600 text-sm text-center">
-          Analyzing bi-monthly consumption for {consumerNo}...
-        </p>
+      <div className="relative flex min-h-screen flex-col items-center justify-center overflow-hidden bg-[#f8fafc] p-4 text-slate-400">
+        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(99,102,241,0.12),transparent_32%)]" />
+        <div className="relative flex flex-col items-center">
+          <div className="relative mb-8 flex h-36 w-36 items-center justify-center">
+            <div className="absolute inset-0 rounded-full border border-indigo-200/70 animate-ping [animation-duration:2.4s]" />
+            <div className="absolute inset-3 rounded-full border border-indigo-300/60 animate-pulse" />
+            <div className="absolute inset-7 rounded-full border-4 border-indigo-100 border-t-indigo-600 animate-spin [animation-duration:1.4s]" />
+            <div className="relative flex h-16 w-16 items-center justify-center rounded-2xl border border-indigo-200 bg-white shadow-lg shadow-indigo-200/50">
+              <Zap className="h-8 w-8 animate-pulse fill-yellow-400 text-indigo-600" />
+            </div>
+            <span className="absolute -right-1 top-5 h-2.5 w-2.5 rounded-full bg-emerald-400 shadow-lg shadow-emerald-300 animate-bounce" />
+            <span className="absolute -bottom-1 left-6 h-2 w-2 rounded-full bg-amber-400 shadow-lg shadow-amber-300 animate-bounce [animation-delay:250ms]" />
+          </div>
+
+          <div className="mb-5 flex h-10 items-end gap-1.5">
+            {["h-3", "h-6", "h-4", "h-9", "h-7", "h-10", "h-5"].map(
+              (height, index) => (
+                <span
+                  key={height}
+                  className={`w-2 rounded-full bg-indigo-500/80 animate-pulse ${height}`}
+                  style={{ animationDelay: `${index * 120}ms` }}
+                />
+              ),
+            )}
+          </div>
+
+          <p className="flex items-center gap-2 text-sm font-bold text-slate-700">
+            <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
+            Syncing TNEB meter data
+          </p>
+          <p className="mt-1 text-center text-xs text-slate-400">
+            Analyzing the 60-day cycle for {consumerNo}
+          </p>
+        </div>
       </div>
     );
   }

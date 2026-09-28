@@ -74,6 +74,13 @@ const getLocationColor = (location: string) => {
   return LOCATION_COLORS[index];
 };
 
+const formatReadingDate = (value: string) => {
+  const date = new Date(`${value}T00:00:00`);
+  if (Number.isNaN(date.getTime())) return value;
+
+  return `${String(date.getDate()).padStart(2, "0")} ${date.toLocaleString("en-US", { month: "short" })}, ${date.getFullYear()}`;
+};
+
 export default function MultiPropertyDashboard() {
   const router = useRouter();
   const [connections, setConnections] = useState<SavedConnection[]>([]);
@@ -538,7 +545,17 @@ export default function MultiPropertyDashboard() {
     connections.forEach((conn) => {
       const summary = dashboardSummaries[conn.consumerNo];
       const latestBill = summary?.bills?.[0];
-      const unitsUsed = latestBill?.units || 0;
+      const latestReading = summary?.readings?.[0];
+      const loggedProjection =
+        latestBill && latestReading
+          ? projectMeterReading({
+              initialKwh: latestReading.cycleStartKwh ?? latestBill.kwhReading,
+              cycleStartDate: latestReading.cycleStartDate ?? latestBill.date,
+              currentKwh: latestReading.currentKwh,
+            })
+          : null;
+      const unitsUsed =
+        loggedProjection?.unitsConsumed ?? latestBill?.units ?? 0;
 
       // Prioritize marked vacant meters or meters with lowest units
       const weightedUnits = conn.isUsageVacant ? unitsUsed - 50 : unitsUsed;
@@ -549,10 +566,24 @@ export default function MultiPropertyDashboard() {
       }
     });
 
-    const bestMeterUnits =
+    const bestMeterSummary =
       dashboardSummaries[
         (bestMeter as SavedConnection | null)?.consumerNo || ""
-      ]?.bills?.[0]?.units || 0;
+      ];
+    const bestMeterBill = bestMeterSummary?.bills?.[0];
+    const bestMeterReading = bestMeterSummary?.readings?.[0];
+    const bestMeterProjection =
+      bestMeterBill && bestMeterReading
+        ? projectMeterReading({
+            initialKwh:
+              bestMeterReading.cycleStartKwh ?? bestMeterBill.kwhReading,
+            cycleStartDate:
+              bestMeterReading.cycleStartDate ?? bestMeterBill.date,
+            currentKwh: bestMeterReading.currentKwh,
+          })
+        : null;
+    const bestMeterUnits =
+      bestMeterProjection?.unitsConsumed ?? bestMeterBill?.units ?? 0;
     const unitsLeft = BI_MONTHLY_FREE_LIMIT - bestMeterUnits;
 
     return {
@@ -634,8 +665,8 @@ export default function MultiPropertyDashboard() {
   }
 
   return (
-    <div className="flex h-dvh bg-[#f8fafc] font-sans text-slate-900 overflow-hidden">
-      <aside className="w-72 bg-white border-r border-slate-100 shrink-0 hidden md:flex flex-col h-full z-10">
+    <div className="flex min-h-dvh flex-col bg-[#f8fafc] font-sans text-slate-900 md:flex-row">
+      <aside className="fixed w-72 bg-white border-r border-slate-100 shrink-0 hidden md:flex flex-col h-full z-10">
         <div className="p-6 border-b border-slate-100 flex items-center gap-2">
           <Zap className="text-yellow-500 fill-yellow-500 w-6 h-6 shrink-0" />
           <h1 className="text-xl font-bold tracking-tight text-slate-900 truncate">
@@ -715,7 +746,7 @@ export default function MultiPropertyDashboard() {
 
       <main
         ref={mainScrollRef}
-        className="flex-1 overflow-y-auto pb-28 md:pb-10 relative scroll-smooth h-full"
+        className="relative flex-1 scroll-smooth pb-8 md:h-dvh md:overflow-y-auto md:pb-10"
       >
         <div className="sticky top-0 z-20 bg-[#f8fafc]/90 backdrop-blur-md px-4 py-4 md:px-10 md:py-6 border-b border-slate-100 md:border-none">
           <div className="max-w-7xl mx-auto flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -1271,6 +1302,9 @@ export default function MultiPropertyDashboard() {
                                                       <h4 className="font-bold text-sm md:text-base text-slate-900 leading-snug truncate">
                                                         {conn.nickname}
                                                       </h4>
+                                                    </div>
+                                                    <p className="text-[11px] md:text-xs text-slate-400 font-mono truncate">
+                                                      {conn.consumerNo}{" "}
                                                       {isBestMeter && (
                                                         <span className="inline-flex items-center gap-1 text-[10px] font-bold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded-md uppercase border border-indigo-200">
                                                           <Sparkles className="w-3 h-3 fill-indigo-600 text-indigo-600" />
@@ -1282,9 +1316,6 @@ export default function MultiPropertyDashboard() {
                                                           Vacant
                                                         </span>
                                                       )}
-                                                    </div>
-                                                    <p className="text-[11px] md:text-xs text-slate-400 font-mono truncate">
-                                                      {conn.consumerNo}
                                                     </p>
                                                     {conn.description && (
                                                       <p className="text-[10px] text-slate-500 italic truncate">
@@ -1351,15 +1382,50 @@ export default function MultiPropertyDashboard() {
                                                         )}
                                                       </div>
                                                       {projection && (
-                                                        <div
-                                                          className={`rounded-xl px-3 py-2 text-xs font-semibold ${projection.projectedUnits <= BI_MONTHLY_FREE_LIMIT ? "bg-emerald-50 text-emerald-700" : "bg-rose-50 text-rose-700"}`}
-                                                        >
-                                                          Forecast:{" "}
-                                                          {
-                                                            projection.projectedUnits
-                                                          }{" "}
-                                                          units, ₹
-                                                          {projection.projectedBill.toLocaleString()}
+                                                        <div className="grid grid-cols-2 gap-2">
+                                                          <div className="rounded-xl border border-slate-100 bg-slate-50 px-3 py-2">
+                                                            <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">
+                                                              Consumed units
+                                                            </p>
+                                                            <p className="mt-1 text-base font-bold text-slate-800">
+                                                              {
+                                                                projection.unitsConsumed
+                                                              }{" "}
+                                                              kWh
+                                                            </p>
+                                                            <p className="text-[10px] text-slate-400">
+                                                              Log recorded:{" "}
+                                                              {formatReadingDate(
+                                                                latestReading.date,
+                                                              )}
+                                                              <br />
+                                                              {
+                                                                projection.freeUnitsBudgetLeft
+                                                              }{" "}
+                                                              free units left
+                                                            </p>
+                                                          </div>
+                                                          <div
+                                                            className={`rounded-xl border px-3 py-2 ${projection.projectedUnits <= BI_MONTHLY_FREE_LIMIT ? "border-emerald-100 bg-emerald-50" : "border-rose-100 bg-rose-50"}`}
+                                                          >
+                                                            <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">
+                                                              Forecast
+                                                            </p>
+                                                            <p
+                                                              className={`mt-1 text-base font-bold ${projection.projectedUnits <= BI_MONTHLY_FREE_LIMIT ? "text-emerald-700" : "text-rose-700"}`}
+                                                            >
+                                                              {
+                                                                projection.projectedUnits
+                                                              }{" "}
+                                                              units
+                                                            </p>
+                                                            <p
+                                                              className={`text-[10px] font-semibold ${projection.projectedUnits <= BI_MONTHLY_FREE_LIMIT ? "text-emerald-600" : "text-rose-600"}`}
+                                                            >
+                                                              ₹
+                                                              {projection.projectedBill.toLocaleString()}
+                                                            </p>
+                                                          </div>
                                                         </div>
                                                       )}
                                                       <MeterReadingButton
@@ -1433,7 +1499,7 @@ export default function MultiPropertyDashboard() {
           />
         )}
 
-      <nav className="md:hidden fixed bottom-0 left-0 w-full bg-white/90 backdrop-blur-md border-t border-slate-200 flex items-end justify-around pb-6 pt-2 px-2 z-50 shadow-[0_-10px_40px_-15px_rgba(0,0,0,0.1)]">
+      <nav className="md:hidden flex w-full shrink-0 items-end justify-around border-t border-slate-200 bg-white/95 px-2 pb-6 pt-2 shadow-[0_-10px_40px_-15px_rgba(0,0,0,0.1)] backdrop-blur-md">
         <button
           onClick={() => {
             setIsFormOpen(false);

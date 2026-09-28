@@ -10,6 +10,29 @@ A modern, cloud-synced TNEB (Tamil Nadu Electricity Board) EB management dashboa
 
 ![Smart EB Tracker Hero](docs/screenshots/hero.png)
 
+## 👋 What is Smart EB Tracker?
+
+Smart EB Tracker is a private dashboard for people managing electricity connections across multiple homes, shops, rental properties, or other locations. It brings TNEB bill history, payment status, consumption trends, tariff slabs, and manual meter readings into one place.
+
+The app is designed for quick, practical decisions: see which connection has the lowest usage, identify pending dues, estimate where the current 60-day cycle is heading, and decide where heavy appliances can be used without crossing the 200-unit free slab.
+
+## 🧭 How It Works
+
+1. **Securely open your workspace:** Connections and readings are tied to your authenticated account.
+2. **Link a TNEB meter:** Add a nickname, consumer number, location, and TNEB token ID. The optional bookmarklet can extract the consumer number and token from the TNEB portal.
+3. **Review official data:** The dashboard fetches bill history, meter readings, slab rates, payment status, and connection details from TNEB.
+4. **Log a manual reading:** Enter the current kWh value and reading date. The value cannot be lower than the official cycle-start reading, and future dates are rejected.
+5. **Use the forecast:** Smart EB Tracker projects usage across the 60-day billing cycle, estimates the TNEB bill, shows the remaining free-unit allowance, and highlights possible load-shifting opportunities between meters at the same location.
+
+Manual readings entered for the same consumer number and date replace the previous entry, so correcting a reading does not create duplicate records.
+
+## 👀 What Visitors Should Know
+
+- This is a utility-management dashboard, not an electricity payment gateway. Payments must still be completed through the official TNEB channels.
+- TNEB token IDs are used to retrieve connection data and should be treated as private credentials.
+- Forecasts are estimates based on the latest official cycle-start reading and your manual reading. They do not replace the official TNEB bill.
+- The dashboard supports multiple properties and groups connections by location for easier comparison.
+
 ## ✨ Core Features
 
 - **☁️ Cloud Synchronization:** Seamlessly stores and syncs meter connections across devices using Firebase Firestore (via Server-Side `firebase-admin`).
@@ -18,6 +41,8 @@ A modern, cloud-synced TNEB (Tamil Nadu Electricity Board) EB management dashboa
 - **🚀 Smart Caching Engine:** Bi-monthly bills are cached locally for 12 hours with automated TTL management to prevent TNEB API rate-limiting, complete with smooth, animated Toast notifications.
 - **📊 Advanced Analytics:** Visualizes consumption trends using `Recharts`, breaks down applicable government slab rates, and highlights 100-unit free subsidies.
 - **🏢 Location-Based EB Management:** Groups multiple meters by sub-division/location. Features comprehensive sorting (Highest Bill, Units, Pending Dues) and live search.
+- **🧮 Manual Reading & Forecasting:** Records one reading per meter per date, projects 60-day usage, estimates the bill with Tamil Nadu domestic slabs, and shows the daily allowance needed to stay within 200 free units.
+- **🔁 Same-Location Load Shifting:** Compares projected usage across meters in the same location and suggests moving heavy loads when another meter has unused free allowance.
 
 ---
 

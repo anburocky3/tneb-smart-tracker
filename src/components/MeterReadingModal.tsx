@@ -123,14 +123,14 @@ export function MeterReadingModal({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/50 p-3 backdrop-blur-sm sm:items-center"
+      className="fixed inset-0 z-60 flex items-end justify-center bg-slate-950/50 p-3 backdrop-blur-sm sm:items-center"
       role="dialog"
       aria-modal="true"
       aria-labelledby="reading-modal-title"
     >
       <form
         onSubmit={submit}
-        className="w-full max-w-md space-y-5 overflow-hidden rounded-3xl border border-slate-200 bg-white p-5 shadow-2xl sm:p-6"
+        className="max-h-[calc(100dvh-1.5rem)] w-full max-w-md space-y-5 overflow-y-auto rounded-3xl border border-slate-200 bg-white p-5 shadow-2xl sm:p-6"
       >
         <div className="flex items-start justify-between gap-4">
           <div>
@@ -216,7 +216,8 @@ export function MeterReadingModal({
               />
             </span>
             <span className="mt-1.5 block text-[11px] font-normal text-slate-400">
-              Selected: {formatDisplayDate(readingDate)}. Future dates are not allowed.
+              Selected: {formatDisplayDate(readingDate)}. Future dates are not
+              allowed.
             </span>
           </label>
         </div>
