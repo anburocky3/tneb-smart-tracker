@@ -36,7 +36,12 @@ import {
   MeterReadingModal,
   type ManualReading,
 } from "@/components/MeterReadingModal";
-import { computeTnebBill, projectMeterReading } from "@/lib/projection";
+import {
+  computeTnebBill,
+  projectMeterReading,
+  projectNextBillingCycle,
+  getOrdinalSuffix,
+} from "@/lib/projection";
 import { ProjectionCard } from "@/components/ProjectionCard";
 
 const FREE_LIMIT = 200;
@@ -111,6 +116,10 @@ export default function ConsumerDetailsPage() {
     fetchMeterData();
   }, [consumerNo]);
 
+  const cycleProjection = useMemo(() => {
+    return projectNextBillingCycle(data?.bills);
+  }, [data]);
+
   // 60-day bi-monthly calculations
   const biMonthlyStats = useMemo(() => {
     if (!data?.bills?.length) return null;
@@ -132,11 +141,16 @@ export default function ConsumerDetailsPage() {
       0,
     ).getDate();
 
-    const daysLeft = isOddMonth
+    const fallbackDaysLeft = isOddMonth
       ? currentMonthDays - today.getDate() + nextMonthDays
       : currentMonthDays - today.getDate();
 
-    const daysPassed = 60 - daysLeft;
+    const daysLeft =
+      cycleProjection && cycleProjection.daysLeft >= 0
+        ? cycleProjection.daysLeft
+        : fallbackDaysLeft;
+
+    const daysPassed = Math.max(1, 60 - daysLeft);
     const unitsPerDay = Number((units / (daysPassed || 1)).toFixed(1));
     const projectedUnits = Math.round(unitsPerDay * 60);
 
@@ -153,7 +167,7 @@ export default function ConsumerDetailsPage() {
       unitsToNextTier,
       isUnderFreeLimit: units <= FREE_LIMIT,
     };
-  }, [data]);
+  }, [data, cycleProjection]);
 
   // Simulation values (60-day cycle basis: 1.5-ton AC ~1.5kW, Geyser ~2kW)
   const simulation = useMemo(() => {
@@ -317,9 +331,106 @@ export default function ConsumerDetailsPage() {
                   60-Day Bi-Monthly Tariff Intelligence
                 </h2>
               </div>
-              <span className="text-[11px] font-semibold text-indigo-700 bg-indigo-100/70 px-2.5 py-1 rounded-full w-fit">
-                Approx. {biMonthlyStats.daysLeft} days remaining in cycle
-              </span>
+              <div className="relative group/cycle">
+                <span className="text-[11px] font-semibold text-indigo-700 bg-indigo-100/70 hover:bg-indigo-200/80 transition-colors px-2.5 py-1 rounded-full w-fit flex items-center gap-1.5 cursor-help">
+                  <CalendarClock className="w-3.5 h-3.5 text-indigo-600" />
+                  {cycleProjection ? (
+                    <>
+                      <span>{cycleProjection.daysText}</span>
+                      <span className="text-indigo-400">•</span>
+                      <span>Next bill: {cycleProjection.formattedNextBillDate}</span>
+                    </>
+                  ) : (
+                    `Approx. ${biMonthlyStats.daysLeft} days remaining in cycle`
+                  )}
+                </span>
+
+                {cycleProjection && (
+                  <div className="absolute right-0 sm:left-0 top-full mt-2 z-50 w-72 sm:w-80 p-3.5 bg-white/95 backdrop-blur-md rounded-2xl shadow-xl shadow-indigo-950/10 border border-slate-200/80 text-left transition-all duration-200 opacity-0 pointer-events-none group-hover/cycle:opacity-100 group-hover/cycle:pointer-events-auto transform translate-y-1 group-hover/cycle:translate-y-0">
+                    <div className="flex items-center justify-between gap-2 pb-2.5 border-b border-slate-100">
+                      <div className="flex items-center gap-1.5 text-xs font-bold text-slate-800">
+                        <Sparkles className="w-3.5 h-3.5 text-indigo-600" />
+                        Next Bill Projection
+                      </div>
+                      <span
+                        className={`text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider ${
+                          cycleProjection.status === "overdue"
+                            ? "bg-rose-100 text-rose-700"
+                            : cycleProjection.status === "today"
+                              ? "bg-amber-100 text-amber-800"
+                              : "bg-indigo-100 text-indigo-700"
+                        }`}
+                      >
+                        {cycleProjection.daysText}
+                      </span>
+                    </div>
+
+                    <div className="py-2.5 space-y-1.5">
+                      <div>
+                        <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">
+                          Next Projected Bill Date
+                        </span>
+                        <div className="text-base font-bold text-slate-900 mt-0.5 flex items-baseline gap-2">
+                          <span>{cycleProjection.formattedNextBillDate}</span>
+                          <span className="text-xs font-mono text-slate-400 font-normal">
+                            ({cycleProjection.shortNextBillDate})
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="p-2 rounded-xl bg-slate-50 border border-slate-100 flex items-center gap-2">
+                        <CalendarClock className="w-4 h-4 text-indigo-600 shrink-0" />
+                        <p className="text-xs font-semibold text-slate-700">
+                          {cycleProjection.daysLeft > 0 ? (
+                            <>
+                              <span className="text-indigo-600 font-bold">
+                                {cycleProjection.daysLeft} day
+                                {cycleProjection.daysLeft === 1 ? "" : "s"} left
+                              </span>{" "}
+                              for next bill generation
+                            </>
+                          ) : cycleProjection.daysLeft === 0 ? (
+                            <span className="text-amber-600 font-bold">
+                              Bill generation scheduled for today
+                            </span>
+                          ) : (
+                            <span className="text-rose-600 font-bold">
+                              Generation delayed by {Math.abs(cycleProjection.daysLeft)} days
+                            </span>
+                          )}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="pt-2 border-t border-slate-100 space-y-1 text-[11px] text-slate-500">
+                      <div className="flex justify-between items-center">
+                        <span className="text-slate-400">Billing cadence:</span>
+                        <span className="font-semibold text-slate-700">
+                          Bi-monthly (~{cycleProjection.cycleIntervalDays} days)
+                        </span>
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <span className="text-slate-400">Cycle schedule day:</span>
+                        <span className="font-semibold text-slate-700">
+                          Around the {cycleProjection.typicalDayOfMonth}
+                          {getOrdinalSuffix(cycleProjection.typicalDayOfMonth)} of the month
+                        </span>
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <span className="text-slate-400">Latest bill on record:</span>
+                        <span className="font-semibold text-slate-700">
+                          {cycleProjection.lastBillDate}
+                        </span>
+                      </div>
+                      {cycleProjection.billsAnalyzedCount > 1 && (
+                        <p className="text-[9px] text-slate-400 italic pt-1">
+                          * Derived from analysis of {cycleProjection.billsAnalyzedCount} historical bill cycles
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">

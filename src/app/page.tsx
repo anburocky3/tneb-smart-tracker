@@ -28,13 +28,19 @@ import {
   GripVertical,
   Lightbulb,
   Sparkles,
+  CalendarClock,
 } from "lucide-react";
 import {
   MeterReadingButton,
   MeterReadingModal,
   type ManualReading,
 } from "@/components/MeterReadingModal";
-import { computeTnebBill, projectMeterReading } from "@/lib/projection";
+import {
+  computeTnebBill,
+  projectMeterReading,
+  projectNextBillingCycle,
+  getOrdinalSuffix,
+} from "@/lib/projection";
 import PushNotificationPrompt from "@/components/PushNotificationPrompt";
 import {
   DragDropContext,
@@ -1250,6 +1256,8 @@ export default function MultiPropertyDashboard() {
                                         const data =
                                           dashboardSummaries[conn.consumerNo];
                                         const latestBill = data?.bills?.[0];
+                                        const cycleProjection =
+                                          projectNextBillingCycle(data?.bills);
                                         const latestReading =
                                           data?.readings?.[0];
                                         const projection =
@@ -1364,10 +1372,202 @@ export default function MultiPropertyDashboard() {
                                                     <div className="space-y-3 md:space-y-4 border-t border-slate-50 pt-3 md:pt-4">
                                                       <div className="flex justify-between items-start gap-2">
                                                         <div>
-                                                          <p className="text-[10px] md:text-xs text-slate-400 mb-0.5">
-                                                            Bill (
-                                                            {latestBill.date})
-                                                          </p>
+                                                          <div
+                                                            className="relative group/bill inline-block mb-1"
+                                                            onClick={(e) =>
+                                                              e.stopPropagation()
+                                                            }
+                                                          >
+                                                            <div className="flex items-center gap-1.5 flex-wrap cursor-pointer">
+                                                              <p className="text-[10px] md:text-xs text-slate-400 group-hover/bill:text-indigo-600 transition-colors">
+                                                                Bill (
+                                                                {latestBill.date}
+                                                                )
+                                                              </p>
+                                                              {cycleProjection && (
+                                                                <span
+                                                                  className={`inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded-md transition-all border ${
+                                                                    cycleProjection.status ===
+                                                                    "overdue"
+                                                                      ? "bg-rose-50 text-rose-700 border-rose-200/80 hover:bg-rose-100"
+                                                                      : cycleProjection.status ===
+                                                                          "today"
+                                                                        ? "bg-amber-50 text-amber-700 border-amber-200/80 animate-pulse hover:bg-amber-100"
+                                                                        : cycleProjection.daysLeft <=
+                                                                            7
+                                                                          ? "bg-amber-50 text-amber-700 border-amber-200/80 hover:bg-amber-100"
+                                                                          : "bg-indigo-50 text-indigo-700 border-indigo-200/80 hover:bg-indigo-100"
+                                                                  }`}
+                                                                >
+                                                                  <CalendarClock className="w-2.5 h-2.5 shrink-0" />
+                                                                  {
+                                                                    cycleProjection.daysBadgeText
+                                                                  }
+                                                                </span>
+                                                              )}
+                                                            </div>
+
+                                                            {cycleProjection && (
+                                                              <div className="absolute left-0 bottom-full mb-2 z-50 w-72 sm:w-80 p-3.5 bg-white/95 backdrop-blur-md rounded-2xl shadow-xl shadow-indigo-950/10 border border-slate-200/80 text-left transition-all duration-200 opacity-0 pointer-events-none group-hover/bill:opacity-100 group-hover/bill:pointer-events-auto transform translate-y-1 group-hover/bill:translate-y-0">
+                                                                <div className="flex items-center justify-between gap-2 pb-2.5 border-b border-slate-100">
+                                                                  <div className="flex items-center gap-1.5 text-xs font-bold text-slate-800">
+                                                                    <Sparkles className="w-3.5 h-3.5 text-indigo-600" />
+                                                                    Next Bill
+                                                                    Projection
+                                                                  </div>
+                                                                  <span
+                                                                    className={`text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider ${
+                                                                      cycleProjection.status ===
+                                                                      "overdue"
+                                                                        ? "bg-rose-100 text-rose-700"
+                                                                        : cycleProjection.status ===
+                                                                            "today"
+                                                                          ? "bg-amber-100 text-amber-800"
+                                                                          : "bg-indigo-100 text-indigo-700"
+                                                                    }`}
+                                                                  >
+                                                                    {
+                                                                      cycleProjection.daysText
+                                                                    }
+                                                                  </span>
+                                                                </div>
+
+                                                                <div className="py-2.5 space-y-1.5">
+                                                                  <div>
+                                                                    <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">
+                                                                      Next
+                                                                      Projected
+                                                                      Bill Date
+                                                                    </span>
+                                                                    <div className="text-base font-bold text-slate-900 mt-0.5 flex items-baseline gap-2">
+                                                                      <span>
+                                                                        {
+                                                                          cycleProjection.formattedNextBillDate
+                                                                        }
+                                                                      </span>
+                                                                      <span className="text-xs font-mono text-slate-400 font-normal">
+                                                                        (
+                                                                        {
+                                                                          cycleProjection.shortNextBillDate
+                                                                        }
+                                                                        )
+                                                                      </span>
+                                                                    </div>
+                                                                  </div>
+
+                                                                  <div className="p-2 rounded-xl bg-slate-50 border border-slate-100 flex items-center gap-2">
+                                                                    <CalendarClock className="w-4 h-4 text-indigo-600 shrink-0" />
+                                                                    <p className="text-xs font-semibold text-slate-700">
+                                                                      {cycleProjection.daysLeft >
+                                                                      0 ? (
+                                                                        <>
+                                                                          <span className="text-indigo-600 font-bold">
+                                                                            {
+                                                                              cycleProjection.daysLeft
+                                                                            }{" "}
+                                                                            day
+                                                                            {cycleProjection.daysLeft ===
+                                                                            1
+                                                                              ? ""
+                                                                              : "s"}{" "}
+                                                                            left
+                                                                          </span>{" "}
+                                                                          for
+                                                                          next
+                                                                          bill
+                                                                          generation
+                                                                        </>
+                                                                      ) : cycleProjection.daysLeft ===
+                                                                        0 ? (
+                                                                        <span className="text-amber-600 font-bold">
+                                                                          Bill
+                                                                          generation
+                                                                          scheduled
+                                                                          for
+                                                                          today
+                                                                        </span>
+                                                                      ) : (
+                                                                        <span className="text-rose-600 font-bold">
+                                                                          Generation
+                                                                          delayed
+                                                                          by{" "}
+                                                                          {Math.abs(
+                                                                            cycleProjection.daysLeft,
+                                                                          )}{" "}
+                                                                          days
+                                                                        </span>
+                                                                      )}
+                                                                    </p>
+                                                                  </div>
+                                                                </div>
+
+                                                                <div className="pt-2 border-t border-slate-100 space-y-1 text-[11px] text-slate-500">
+                                                                  <div className="flex justify-between items-center">
+                                                                    <span className="text-slate-400">
+                                                                      Billing
+                                                                      cadence:
+                                                                    </span>
+                                                                    <span className="font-semibold text-slate-700">
+                                                                      Bi-monthly
+                                                                      (~
+                                                                      {
+                                                                        cycleProjection.cycleIntervalDays
+                                                                      }{" "}
+                                                                      days)
+                                                                    </span>
+                                                                  </div>
+                                                                  <div className="flex justify-between items-center">
+                                                                    <span className="text-slate-400">
+                                                                      Cycle
+                                                                      schedule
+                                                                      day:
+                                                                    </span>
+                                                                    <span className="font-semibold text-slate-700">
+                                                                      Around
+                                                                      the{" "}
+                                                                      {
+                                                                        cycleProjection.typicalDayOfMonth
+                                                                      }
+                                                                      {getOrdinalSuffix(
+                                                                        cycleProjection.typicalDayOfMonth,
+                                                                      )}{" "}
+                                                                      of the
+                                                                      month
+                                                                    </span>
+                                                                  </div>
+                                                                  <div className="flex justify-between items-center">
+                                                                    <span className="text-slate-400">
+                                                                      Latest
+                                                                      bill on
+                                                                      record:
+                                                                    </span>
+                                                                    <span className="font-semibold text-slate-700">
+                                                                      {
+                                                                        cycleProjection.lastBillDate
+                                                                      }
+                                                                    </span>
+                                                                  </div>
+                                                                  {cycleProjection.billsAnalyzedCount >
+                                                                    1 && (
+                                                                    <p className="text-[9px] text-slate-400 italic pt-1">
+                                                                      * Derived
+                                                                      from
+                                                                      analysis
+                                                                      of{" "}
+                                                                      {
+                                                                        cycleProjection.billsAnalyzedCount
+                                                                      }{" "}
+                                                                      historical
+                                                                      bill
+                                                                      cycles
+                                                                    </p>
+                                                                  )}
+                                                                </div>
+
+                                                                <div className="absolute top-full left-6 -mt-px w-2.5 h-2.5 bg-white border-b border-r border-slate-200/80 rotate-45 transform" />
+                                                              </div>
+                                                            )}
+                                                          </div>
                                                           <p className="text-xl md:text-2xl font-bold text-slate-900 mb-2">
                                                             ₹
                                                             {latestBill.amount.toLocaleString()}
